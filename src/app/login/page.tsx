@@ -8,6 +8,7 @@ export default function AuthPage() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,16 +21,39 @@ export default function AuthPage() {
     setLoading(true);
 
     if (isRegistering) {
-      const { error } = await supabase.auth.signUp({
+      if (!username.trim()) {
+        setErrorMsg("Username is required.");
+        setLoading(false);
+        return;
+      }
+
+      // 1. Sign up user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
       });
-      if (error) {
-        setErrorMsg(error.message);
-      } else {
-        alert("Registration successful! Check your email for verification if enabled, or log in.");
-        setIsRegistering(false);
+
+      if (authError) {
+        setErrorMsg(authError.message);
+        setLoading(false);
+        return;
       }
+
+      // 2. Create profile row
+      if (authData.user) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert([{ id: authData.user.id, username: username.trim() }]);
+
+        if (profileError) {
+          setErrorMsg(profileError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      alert("Registration successful! You can now sign in.");
+      setIsRegistering(false);
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -64,6 +88,22 @@ export default function AuthPage() {
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
+          {isRegistering && (
+            <div>
+              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                Username
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="attorney_doe"
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
               Email Address
