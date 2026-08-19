@@ -182,7 +182,7 @@ export default function CaseLibraryPage() {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <Link
                           href={`/case/${item.id}`}
-                          className="font-bold text-sm text-foreground hover:text-accent leading-snug break-words"
+                          className="font-bold text-sm text-foreground hover:text-accent leading-snug wrap-break-word"
                         >
                           {item.case_title}
                         </Link>

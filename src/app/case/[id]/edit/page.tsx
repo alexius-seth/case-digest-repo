@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORIES = [
@@ -12,9 +13,16 @@ const CATEGORIES = [
   "International Law",
 ] as const;
 
-export default function CreateDigestPage() {
+export default function EditCasePage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const id = resolvedParams.id;
+
   const router = useRouter();
   const supabase = createClient();
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [caseTitle, setCaseTitle] = useState("");
   const [grNumber, setGrNumber] = useState("");
@@ -24,56 +32,86 @@ export default function CreateDigestPage() {
   const [issue, setIssue] = useState("");
   const [ruling, setRuling] = useState("");
 
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  useEffect(() => {
+    fetchCaseDigest();
+  }, [id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const fetchCaseDigest = async () => {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("case_digests")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
+      setErrorMsg("Case digest not found or permission denied.");
+    } else {
+      setCaseTitle(data.case_title || "");
+      setGrNumber(data.gr_number || "");
+      setLegalClassification(data.legal_classification || CATEGORIES[0]);
+      setDoctrine(data.doctrine || "");
+      setFacts(data.facts || "");
+      setIssue(data.issues || "");
+      setRuling(data.ruling || "");
+    }
+
+    setLoading(false);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSubmitting(true);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setErrorMsg("You must be logged in to create a digest.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-  .from("case_digests")
-  .insert([
-    {
-      user_id: user.id,
-      case_title: caseTitle.trim(),
-      gr_number: grNumber.trim(),
-      legal_classification: legalClassification,
-      doctrine: doctrine.trim() || null,
-      facts: facts.trim(),
-      issues: issue.trim(), // Map 'issue' form state to 'issues' DB column
-      ruling: ruling.trim(),
-    },
-  ])
-  .select()
-  .single();
+    const { error } = await supabase
+      .from("case_digests")
+      .update({
+        case_title: caseTitle.trim(),
+        gr_number: grNumber.trim(),
+        legal_classification: legalClassification,
+        doctrine: doctrine.trim() || null,
+        facts: facts.trim(),
+        issues: issue.trim(),
+        ruling: ruling.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
 
     if (error) {
       setErrorMsg(error.message);
       setSubmitting(false);
-    } else if (data) {
-      router.push(`/case/${data.id}`);
+    } else {
+      router.push(`/case/${id}`);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-sm text-gray-500">
+        Loading digest details for editing...
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="pb-4 border-b border-gray-200">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-          Create Case Digest
-        </h1>
-        <p className="text-xs sm:text-sm text-gray-600 mt-1">
-          Add a new jurisprudence entry to your repository.
-        </p>
+      <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            Edit Case Digest
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">
+            Update facts, doctrine, or legal classifications for this entry.
+          </p>
+        </div>
+        <Link
+          href={`/case/${id}`}
+          className="text-xs font-semibold text-gray-600 hover:text-foreground underline"
+        >
+          Back to Digest
+        </Link>
       </div>
 
       {errorMsg && (
@@ -82,7 +120,7 @@ export default function CreateDigestPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <form onSubmit={handleUpdate} className="space-y-6 bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
@@ -93,7 +131,6 @@ export default function CreateDigestPage() {
               required
               value={caseTitle}
               onChange={(e) => setCaseTitle(e.target.value)}
-              placeholder="e.g., People of the Philippines v. Santos"
               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
             />
           </div>
@@ -107,7 +144,6 @@ export default function CreateDigestPage() {
               required
               value={grNumber}
               onChange={(e) => setGrNumber(e.target.value)}
-              placeholder="e.g., G.R. No. 201234, Jan 15, 2020"
               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
             />
           </div>
@@ -138,7 +174,6 @@ export default function CreateDigestPage() {
             rows={2}
             value={doctrine}
             onChange={(e) => setDoctrine(e.target.value)}
-            placeholder="Summarize the key takeaway or principle laid down by the court..."
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
           />
         </div>
@@ -152,7 +187,6 @@ export default function CreateDigestPage() {
             required
             value={facts}
             onChange={(e) => setFacts(e.target.value)}
-            placeholder="Essential background facts of the case..."
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
           />
         </div>
@@ -166,7 +200,6 @@ export default function CreateDigestPage() {
             required
             value={issue}
             onChange={(e) => setIssue(e.target.value)}
-            placeholder="Key legal question(s) raised..."
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
           />
         </div>
@@ -180,25 +213,23 @@ export default function CreateDigestPage() {
             required
             value={ruling}
             onChange={(e) => setRuling(e.target.value)}
-            placeholder="Court decision and rationale..."
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm text-foreground bg-white"
           />
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-          <button
-            type="button"
-            onClick={() => router.back()}
+          <Link
+            href={`/case/${id}`}
             className="px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium rounded transition-colors"
           >
             Cancel
-          </button>
+          </Link>
           <button
             type="submit"
             disabled={submitting}
             className="px-5 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
           >
-            {submitting ? "Saving Digest..." : "Save Digest"}
+            {submitting ? "Updating..." : "Update Digest"}
           </button>
         </div>
       </form>

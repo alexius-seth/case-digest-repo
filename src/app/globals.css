@@ -10,3 +10,20 @@
   --color-accent-light: #fce7f3;
 }
 
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  header,
+  nav,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .max-w-4xl {
+    max-width: 100% !important;
+  }
+}
