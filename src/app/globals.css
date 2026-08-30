@@ -1,29 +1,51 @@
 @import "tailwindcss";
 
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+
 @theme {
-  --color-background: #ffffff;
-  --color-foreground: #000000;
-  
-  /* Accent Colors (Pink Palette) */
+  --color-bg-main: #f8fafc;
+  --color-bg-card: #ffffff;
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-border: #e2e8f0;
   --color-accent: #ec4899;
   --color-accent-hover: #db2777;
   --color-accent-light: #fce7f3;
+  --color-foreground: #0f172a;
+  --color-background: #f8fafc;
 }
 
-@media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
 
-  header,
-  nav,
-  footer,
-  .print\:hidden {
-    display: none !important;
-  }
+.dark {
+  --color-bg-main: #0f172a;
+  --color-bg-card: #1e293b;
+  --color-text-main: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
+  --color-accent: #f472b6;
+  --color-accent-hover: #ec4899;
+  --color-accent-light: #831843;
+  --color-foreground: #f8fafc;
+  --color-background: #0f172a;
+}
 
-  .max-w-4xl {
-    max-width: 100% !important;
-  }
+body {
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+  min-height: 100vh;
+}
+
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
 }
