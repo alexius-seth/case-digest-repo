@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { ThemeProvider } from "next-themes";
 import Navbar from "@/components/Navbar";
+import { ToastProvider } from "@/components/Toastprovider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Case Digest Repository",
-  description: "Personal legal knowledge management platform",
+  title: "CaseKo",
+  description:
+    "Organize, reference, and review Philippine case digests, legal doctrines, and Bar subjects.",
 };
 
 export default function RootLayout({
@@ -13,12 +16,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-background text-foreground min-h-screen antialiased flex flex-col">
-        <Navbar />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {children}
-        </main>
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-background text-foreground min-h-screen antialiased flex flex-col transition-colors duration-200">
+<ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+  <ToastProvider>
+    <Navbar />
+    <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+      {children}
+    </main>
+  </ToastProvider>
+</ThemeProvider>
       </body>
     </html>
   );
