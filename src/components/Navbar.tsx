@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navLinks = [
   { name: "Dashboard", href: "/dashboard" },
@@ -30,9 +31,11 @@ export default function Navbar() {
 
     fetchUserProfile();
 
-    // Close dropdown on outside click
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     };
@@ -41,7 +44,9 @@ export default function Navbar() {
   }, [pathname]);
 
   const fetchUserProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     setUserEmail(user.email || null);
@@ -68,12 +73,15 @@ export default function Navbar() {
   if (pathname === "/login") return null;
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+    <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/dashboard" className="text-xl font-bold tracking-tight text-black">
-            Case<span className="text-accent">Digest</span>
+          <Link
+            href="/dashboard"
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-white"
+          >
+            Case<span className="text-pink-600 dark:text-pink-400">Ko</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -86,8 +94,8 @@ export default function Navbar() {
                   href={link.href}
                   className={`text-sm font-medium transition-colors ${
                     isActive
-                      ? "text-accent border-b-2 border-accent pb-1 font-semibold"
-                      : "text-black hover:text-accent"
+                      ? "text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400 pb-1 font-semibold"
+                      : "text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400"
                   }`}
                 >
                   {link.name}
@@ -95,14 +103,17 @@ export default function Navbar() {
               );
             })}
 
+            {/* Pill Theme Switcher */}
+            <ThemeToggle />
+
             {/* Profile Avatar & Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center focus:outline-none focus:ring-2 focus:ring-accent rounded-full"
+                className="flex items-center focus:outline-none focus:ring-2 focus:ring-pink-500 rounded-full"
                 aria-label="User Menu"
               >
-                <div className="relative w-9 h-9 rounded-full overflow-hidden border border-gray-300 bg-accent-light flex items-center justify-center">
+                <div className="relative w-9 h-9 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-pink-100 dark:bg-slate-800 flex items-center justify-center">
                   {avatarUrl ? (
                     <Image
                       src={avatarUrl}
@@ -111,7 +122,7 @@ export default function Navbar() {
                       className="object-cover"
                     />
                   ) : (
-                    <span className="text-sm font-bold text-accent uppercase">
+                    <span className="text-sm font-bold text-pink-600 dark:text-pink-400 uppercase">
                       {username ? username[0] : userEmail ? userEmail[0] : "U"}
                     </span>
                   )}
@@ -120,25 +131,27 @@ export default function Navbar() {
 
               {/* Dropdown Menu */}
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-xs font-semibold text-gray-900 truncate">
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
                       {username || "User"}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {userEmail}
+                    </p>
                   </div>
 
                   <Link
                     href="/profile"
                     onClick={() => setDropdownOpen(false)}
-                    className="block px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-accent"
+                    className="block px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-pink-600"
                   >
                     Profile Settings
                   </Link>
 
                   <button
                     onClick={handleSignOut}
-                    className="w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                    className="w-full text-left px-4 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                   >
                     Sign Out
                   </button>
@@ -147,27 +160,30 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* Mobile Hamburger Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            type="button"
-            className="md:hidden p-2 rounded-md text-gray-700 hover:text-black hover:bg-gray-100 focus:outline-none"
-            aria-label="Toggle Menu"
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
+          {/* Mobile Navigation */}
+          <div className="flex items-center gap-3 md:hidden">
+            <ThemeToggle />
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              type="button"
+              className="p-2 rounded-md text-slate-700 dark:text-slate-200 hover:text-black hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
+              aria-label="Toggle Menu"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile Navigation Drawer */}
+      {/* Mobile Drawer */}
       {isOpen && (
-        <nav className="md:hidden border-t border-gray-100 bg-white px-4 pt-2 pb-4 space-y-2">
+        <nav className="md:hidden border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-2 pb-4 space-y-2">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -177,32 +193,14 @@ export default function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className={`block py-2 text-base font-medium rounded-md px-3 ${
                   isActive
-                    ? "bg-accent-light text-accent-hover font-semibold"
-                    : "text-gray-900 hover:bg-gray-50"
+                    ? "bg-pink-50 dark:bg-slate-800 text-pink-600 dark:text-pink-400 font-semibold"
+                    : "text-slate-900 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 {link.name}
               </Link>
             );
           })}
-
-          <Link
-            href="/profile"
-            onClick={() => setIsOpen(false)}
-            className="block py-2 text-base font-medium text-gray-900 hover:bg-gray-50 rounded-md px-3"
-          >
-            Profile Settings
-          </Link>
-
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              handleSignOut();
-            }}
-            className="w-full text-left py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-md px-3"
-          >
-            Sign Out
-          </button>
         </nav>
       )}
     </header>
