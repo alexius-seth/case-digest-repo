@@ -2,7 +2,7 @@
 
 A personal case digest repository for Philippine jurisprudence — built to organize, search, and review case law while studying for the Bar.
 
-**[Live Demo](#)** · Built with Next.js, Supabase, and Tailwind CSS
+**[Live Demo](https://case-digest-repo-pied.vercel.app)** · Built with Next.js, Supabase, and Tailwind CSS
 
 ---
 
