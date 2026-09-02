@@ -41,7 +41,7 @@ Reviewing Philippine jurisprudence for the Bar means keeping track of hundreds o
 
 1. Clone the repo
    ```bash
-   git clone https://github.com/your-username/caseko.git
+   git clone https://github.com/alexius-seth/case-digest-repo.git
    cd caseko
    npm install
    ```
@@ -78,7 +78,7 @@ This project deploys cleanly to Vercel:
   ![Case Detail](.github/screenshots/caselib.png)
   ![Dark Mode](.github/screenshots/dark.png)
 
-  
+
 ## Project Structure
 
 ```
@@ -101,4 +101,4 @@ MIT
 
 ---
 
-Built by [Your Name](https://github.com/your-username) — feedback and issues welcome.
+Built by [Alexius Seth](https://github.com/alexius-seth) — feedback and issues welcome.
