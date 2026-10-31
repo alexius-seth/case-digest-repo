@@ -136,4 +136,4 @@ case-digest-repo/
 
 Contributions, feedback, and pull requests are welcome. Feel free to open an issue to suggest improvements or additional Bar subject subcategories.
 
-Distributed under the [MIT License](LICENSE).
+AUTHOR: Alexius Seth
