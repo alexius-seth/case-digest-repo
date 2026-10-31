@@ -22,6 +22,7 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [username, setUsername] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,9 +40,30 @@ export default function Navbar() {
         setDropdownOpen(false);
       }
     };
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const searchInput = document.getElementById(
+          "search-input"
+        ) as HTMLInputElement | null;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        } else {
+          router.push("/dashboard?focus=search");
+        }
+      }
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [pathname]);
+    window.addEventListener("keydown", handleGlobalKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [pathname, router]);
 
   const fetchUserProfile = async () => {
     const {
@@ -60,6 +82,7 @@ export default function Navbar() {
     if (profile) {
       setUsername(profile.username || "");
       setAvatarUrl(profile.avatar_url || null);
+      setAvatarError(false);
     }
   };
 
@@ -110,15 +133,17 @@ export default function Navbar() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center focus:outline-none focus:ring-2 focus:ring-pink-500 rounded-full"
+                className="flex items-center focus:outline-none focus:ring-2 focus:ring-pink-500 rounded-full cursor-pointer"
                 aria-label="User Menu"
               >
                 <div className="relative w-9 h-9 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-pink-100 dark:bg-slate-800 flex items-center justify-center">
-                  {avatarUrl ? (
+                  {avatarUrl && !avatarError ? (
                     <Image
                       src={avatarUrl}
                       alt="Profile Avatar"
                       fill
+                      unoptimized
+                      onError={() => setAvatarError(true)}
                       className="object-cover"
                     />
                   ) : (
@@ -129,51 +154,66 @@ export default function Navbar() {
                 </div>
               </button>
 
-              {/* Dropdown Menu */}
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-50">
-                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                      {username || "User"}
+                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black/5 divide-y divide-slate-100 dark:divide-slate-700 z-50">
+                  <div className="px-4 py-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Signed in as
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {userEmail}
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                      {username || userEmail}
                     </p>
                   </div>
-
-                  <Link
-                    href="/profile"
-                    onClick={() => setDropdownOpen(false)}
-                    className="block px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-pink-600"
-                  >
-                    Profile Settings
-                  </Link>
-
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full text-left px-4 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
-                  >
-                    Sign Out
-                  </button>
+                  <div className="py-1">
+                    <Link
+                      href="/profile"
+                      onClick={() => setDropdownOpen(false)}
+                      className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    >
+                      User Profile
+                    </Link>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      onClick={handleSignOut}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+                    >
+                      Sign out
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </nav>
 
-          {/* Mobile Navigation */}
-          <div className="flex items-center gap-3 md:hidden">
+          {/* Mobile Menu Button */}
+          <div className="flex md:hidden items-center space-x-3">
             <ThemeToggle />
             <button
               onClick={() => setIsOpen(!isOpen)}
-              type="button"
-              className="p-2 rounded-md text-slate-700 dark:text-slate-200 hover:text-black hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
-              aria-label="Toggle Menu"
+              className="text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 focus:outline-none cursor-pointer"
+              aria-label="Toggle navigation menu"
             >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 {isOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
                 )}
               </svg>
             </button>
@@ -181,9 +221,9 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Menu Dropdown */}
       {isOpen && (
-        <nav className="md:hidden border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-2 pb-4 space-y-2">
+        <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-2 pb-4 space-y-2">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -191,17 +231,57 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setIsOpen(false)}
-                className={`block py-2 text-base font-medium rounded-md px-3 ${
+                className={`block px-3 py-2 rounded-md text-base font-medium ${
                   isActive
-                    ? "bg-pink-50 dark:bg-slate-800 text-pink-600 dark:text-pink-400 font-semibold"
-                    : "text-slate-900 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    ? "bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 font-semibold"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 {link.name}
               </Link>
             );
           })}
-        </nav>
+
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+            <div className="flex items-center px-3 mb-2">
+              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-pink-100 dark:bg-slate-800 text-pink-600 dark:text-pink-400 font-bold flex items-center justify-center mr-3 text-xs">
+                {avatarUrl && !avatarError ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Profile Avatar"
+                    fill
+                    unoptimized
+                    onError={() => setAvatarError(true)}
+                    className="object-cover"
+                  />
+                ) : (
+                  <span>{username ? username[0] : userEmail ? userEmail[0] : "U"}</span>
+                )}
+              </div>
+              <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
+                {username || userEmail}
+              </div>
+            </div>
+
+            <Link
+              href="/profile"
+              onClick={() => setIsOpen(false)}
+              className="block px-3 py-2 rounded-md text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Profile Settings
+            </Link>
+
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                handleSignOut();
+              }}
+              className="block w-full text-left px-3 py-2 rounded-md text-sm text-red-600 dark:text-red-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
       )}
     </header>
   );

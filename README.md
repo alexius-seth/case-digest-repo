@@ -1,104 +1,139 @@
 # CaseKo
 
-A personal case digest repository for Philippine jurisprudence — built to organize, search, and review case law while studying for the Bar.
+A modern, full-stack personal case digest repository for Philippine jurisprudence — built to organize, search, and review case law for law students, legal practitioners, and Philippine Bar reviewees.
 
-**[Live Demo](https://case-digest-repo-pied.vercel.app)** · Built with Next.js, Supabase, and Tailwind CSS
+**[Live Demo](https://case-digest-repo-pied.vercel.app)** · Built with Next.js (App Router), Supabase (Postgres & Auth), and Tailwind CSS v4
 
 ---
 
-## Why I built this
+## Why CaseKo?
 
-Reviewing Philippine jurisprudence for the Bar means keeping track of hundreds of cases — their doctrines, facts, and rulings — in a way that's actually searchable and easy to revisit. Existing note-taking tools weren't built for this specific workflow, so I built CaseKo to be a purpose-made repository: create a digest for each case, tag it by legal classification, highlight the doctrine, and search across your whole library when you need to find something fast.
+Reviewing Philippine jurisprudence requires tracking hundreds of Supreme Court decisions across all Bar exam subjects — their facts, legal issues, doctrines, and rulings — in a format that is immediately searchable, structurally categorized, and rapid to review.
 
-## Features
+Existing generic note-taking tools lack legal taxonomy, citation linking, and citation-specific search. **CaseKo** is purpose-built for Philippine legal review:
 
-- **Case Digests** — create, edit, and organize case digests with title, G.R. number, classification, doctrine, facts, issue, and ruling
-- **Dashboard & Library** — a working dashboard with search/filter/batch actions, and a library view grouped by legal classification
-- **Doctrine Highlights** — key doctrines are visually pulled out and easy to scan at a glance
-- **Full-text source links** — auto-generated links to Philippine legal repositories for the complete official decision
-- **Print / Export to PDF** — clean, print-ready formatting for any case digest
-- **Data export/import** — back up your entire repository as JSON or CSV, or restore from a previous export
-- **Dark mode** — full dark/light theme support across every page
-- **Account management** — change email/password, or delete your account and all associated data
-- **Row-Level Security** — every user's data is isolated at the database level via Supabase RLS, not just app-level checks
+- **Philippine Bar Syllabus Alignment**: Pre-configured with the 8 official Bar examination subjects and extensive subcategories (e.g., CPRA in Legal Ethics, Kalikasan in Remedial Law, FRIA & AMLA in Commercial Law).
+- **PostgreSQL Full-Text Search (FTS)**: High-performance weighted searching across case titles, G.R. numbers, key doctrines, facts, and rulings powered by GIN indexes.
+- **Direct Primary Source Verification**: 1-click links to official decisions on **Lawphil**, the **Supreme Court E-Library**, and the **ChanRobles Law Library**.
+- **Print & PDF Brief Mode**: Clean print styling tuned specifically for offline physical study binders and legal briefs.
+
+---
+
+## Key Features
+
+- **Structured Case Digests**: Create and edit entries with title, G.R. citation, legal classification, subcategory, key legal doctrine, facts, issues, and court ruling.
+- **Fast Search & Instant Filter**: Full-text weighted search with debouncing, classification filtering, and keyboard navigation (`⌘K` / `Ctrl+K`).
+- **Doctrine Highlighting**: Instant visual pull-outs for core legal principles with one-click clipboard copying formatted with proper citations.
+- **App Router Streaming & Resilience**: Built on React Server Components (RSC) with native Next.js streaming skeletons (`loading.tsx`), error boundaries (`error.tsx`), and not-found states (`not-found.tsx`).
+- **Strict Data Validation**: Front-to-back schema validation powered by **Zod** and TypeScript generics linked to Supabase schemas.
+- **Data Portability (RFC 4180)**: Full backup and restoration pipelines supporting both JSON and RFC 4180 compliant CSV import/export.
+- **Accessible Modal System**: Replaced browser-native alerts with custom accessible dialogs and batch multi-select operations.
+- **Database-Enforced Security**: Complete user isolation with PostgreSQL Row-Level Security (RLS) policies and composite unique constraints (`user_id`, `gr_number`).
+- **Responsive Dark Mode**: Fully themed with contrast-tuned dark/light modes.
+
+---
 
 ## Tech Stack
 
-- **Framework:** [Next.js](https://nextjs.org/) (App Router)
-- **Database & Auth:** [Supabase](https://supabase.com/) (Postgres, Auth, Storage, Row-Level Security)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
-- **Language:** TypeScript
-- **Deployment:** [Vercel](https://vercel.com/)
+| Layer | Technology |
+|---|---|
+| **Framework** | [Next.js](https://nextjs.org/) (App Router, React Server Components) |
+| **Language** | [TypeScript](https://www.typescriptlang.org/) (Strict mode, Supabase DB generics) |
+| **Database & Auth** | [Supabase](https://supabase.com/) (PostgreSQL 15+, Auth, Storage, Row-Level Security) |
+| **Search Engine** | PostgreSQL Native Full-Text Search (`tsvector`, `tsquery`, GIN indexing) |
+| **Validation** | [Zod](https://zod.dev/) |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) |
+| **Deployment** | [Vercel](https://vercel.com/) |
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- A [Supabase](https://supabase.com/) project
+- [Node.js](https://nodejs.org/) (v18.18 or newer)
+- [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
+- A free [Supabase](https://supabase.com/) project
 
-### Setup
+### Installation
 
-1. Clone the repo
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/alexius-seth/case-digest-repo.git
-   cd caseko
+   cd case-digest-repo
    npm install
    ```
 
-2. Create a `.env.local` file in the project root:
+2. **Configure Environment Variables:**
+   Copy the example environment configuration:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Fill in your Supabase credentials:
    ```dotenv
-   NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
    ```
-   > The service role key is required for account deletion (`/api/account/delete`) and must never be prefixed with `NEXT_PUBLIC_`.
+   > **Note:** `SUPABASE_SERVICE_ROLE_KEY` is exclusively accessed server-side (e.g. account deletion) and is never exposed to client browsers.
 
-3. Run the database migrations in `supabase/migrations/` via the Supabase SQL Editor.
+3. **Database Schema & Migrations:**
+   Apply the SQL migrations located in `supabase/migrations/` using the Supabase CLI or SQL Editor:
+   - `20260810_initial_schema.sql` (Tables, profiles, RLS policies, storage bucket)
+   - `20261101_fts_and_integrity.sql` (Weighted full-text search tsvector, GIN index, unique G.R. constraint)
 
-4. Start the dev server:
+4. **Run the Development Server:**
    ```bash
    npm run dev
    ```
+   Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
-5. Open [http://localhost:3000](http://localhost:3000).
-
-### Deploying
-
-This project deploys cleanly to Vercel:
-
-1. Push to GitHub, then import the repo in Vercel
-2. Add the three environment variables above in the Vercel project settings
-3. Deploy
-4. In Supabase, update **Authentication → URL Configuration** with your production domain (Site URL + Redirect URLs)
-
-## Screenshots
-
-![Dashboard](.github/screenshots/dashboard.png)
-  ![Case Detail](.github/screenshots/caselib.png)
-  ![Dark Mode](.github/screenshots/dark.png)
-
+---
 
 ## Project Structure
 
 ```
-app/
-  ├─ dashboard/       # Main case digest dashboard
-  ├─ library/         # Case library, grouped by classification
-  ├─ create/          # Create new case digest
-  ├─ case/[id]/       # Case detail view + edit
-  ├─ profile/         # Account settings, data export/import
-  ├─ login/           # Auth (sign in / register)
-  └─ api/account/     # Server-side account deletion
-components/           # Shared UI components
-lib/supabase/         # Supabase client, server, and admin clients
-supabase/migrations/  # Database schema and trigger definitions
+case-digest-repo/
+├── src/
+│   ├── app/
+│   │   ├── (auth)/login/       # Authentication (Sign In & Sign Up)
+│   │   ├── dashboard/          # Search, filter, metrics & batch management
+│   │   ├── library/            # Grouped classification case library
+│   │   ├── create/             # New case digest creator form
+│   │   ├── case/[id]/          # RSC detail reader, print preview & actions
+│   │   ├── case/[id]/edit/     # Digest editor form
+│   │   ├── profile/            # Avatar upload, export/import & account management
+│   │   └── api/account/delete/ # Server-side cascade account deletion route
+│   ├── components/             # Reusable UI components (Navbar, DigestForm, ConfirmDialog)
+│   ├── lib/
+│   │   ├── constants.ts        # Philippine Bar classifications and subcategories
+│   │   ├── export-import.ts    # RFC 4180 CSV / JSON serialization and parser
+│   │   ├── ph-law.ts           # Citation links (Lawphil, SC E-Library, ChanRobles)
+│   │   ├── supabase/           # Browser, Server (RSC/Actions), Admin & Middleware clients
+│   │   └── validations/        # Zod schema definitions
+│   └── types/                  # Database schema definitions and TypeScript types
+├── supabase/
+│   └── migrations/             # SQL database schema and full-text search migrations
+├── .env.example                # Sample environment configuration template
+└── next.config.ts              # Next.js configuration
 ```
-
-## License
-
-MIT
 
 ---
 
-Built by [Alexius Seth](https://github.com/alexius-seth) — feedback and issues welcome.
+## Screenshots
+
+| Dashboard & Metrics | Case Library |
+|:---:|:---:|
+| ![Dashboard](.github/screenshots/dashboard.png) | ![Case Library](.github/screenshots/caselib.png) |
+
+| Dark Mode Reading |
+|:---:|
+| ![Dark Mode](.github/screenshots/dark.png) |
+
+---
+
+## Contributing & License
+
+Contributions, feedback, and pull requests are welcome. Feel free to open an issue to suggest improvements or additional Bar subject subcategories.
+
+Distributed under the [MIT License](LICENSE).

@@ -3,20 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import Toast, { ToastType } from "@/components/Toast";
-import { useToast } from "@/components/Toastprovider";
 
 const inputClass =
   "w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-700 rounded focus:outline-none focus:border-accent text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder:text-gray-400 dark:placeholder:text-gray-500";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
-    // Eye-off icon (currently visible, click to hide)
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
     </svg>
   ) : (
-    // Eye icon (currently hidden, click to show)
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -32,26 +28,36 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const router = useRouter();
   const supabase = createClient();
-  const { showToast } = useToast();
+
+  const resetMessages = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsDuplicateEmail(false);
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    resetMessages();
     setLoading(true);
 
     if (isRegistering) {
       if (!username.trim()) {
-        showToast("Username is required.", "error");
+        setErrorMessage("Username is required.");
         setLoading(false);
         return;
       }
 
       if (password !== confirmPassword) {
-        showToast("Passwords do not match.", "error");
+        setErrorMessage("Passwords do not match.");
         setLoading(false);
         return;
       }
@@ -66,12 +72,27 @@ export default function AuthPage() {
       });
 
       if (authError) {
-        showToast(authError.message, "error");
+        const isDup =
+          authError.message.toLowerCase().includes("user already registered") ||
+          authError.message.toLowerCase().includes("already registered");
+        setErrorMessage(
+          isDup
+            ? "An account with this email already exists. Please sign in instead."
+            : authError.message
+        );
+        setIsDuplicateEmail(isDup);
         setLoading(false);
         return;
       }
 
-      showToast("Registration successful! Check your email to confirm your account, then sign in.", "success");
+      if (authData?.user?.identities && authData.user.identities.length === 0) {
+        setErrorMessage("An account with this email already exists. Please sign in instead.");
+        setIsDuplicateEmail(true);
+        setLoading(false);
+        return;
+      }
+
+      setSuccessMessage("Registration successful! Check your email to confirm your account, then sign in.");
       setIsRegistering(false);
       setPassword("");
       setConfirmPassword("");
@@ -81,7 +102,7 @@ export default function AuthPage() {
         password,
       });
       if (error) {
-        showToast(error.message, "error");
+        setErrorMessage(error.message);
       } else {
         router.push("/dashboard");
         router.refresh();
@@ -101,6 +122,48 @@ export default function AuthPage() {
             {isRegistering ? "Create your personal legal repository account" : "Sign in to access your case digests"}
           </p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 rounded text-xs flex items-start justify-between gap-2">
+            <div>
+              <p>{errorMessage}</p>
+              {isDuplicateEmail && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegistering(false);
+                    resetMessages();
+                  }}
+                  className="mt-1 font-semibold underline hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+                >
+                  Switch to Sign In →
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={resetMessages}
+              className="text-red-500 hover:text-red-700 dark:hover:text-red-300 font-bold cursor-pointer"
+              aria-label="Dismiss error"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded text-xs flex items-start justify-between gap-2">
+            <p>{successMessage}</p>
+            <button
+              type="button"
+              onClick={() => setSuccessMessage(null)}
+              className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200 font-bold cursor-pointer"
+              aria-label="Dismiss message"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleAuth} className="space-y-4">
           {isRegistering && (
@@ -202,6 +265,7 @@ export default function AuthPage() {
               setIsRegistering(!isRegistering);
               setPassword("");
               setConfirmPassword("");
+              resetMessages();
             }}
             className="text-foreground hover:text-accent font-medium underline cursor-pointer"
           >

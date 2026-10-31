@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/Toastprovider";
+import {
+  exportToCSV,
+  exportToJSON,
+  getExportFilename,
+  triggerFileDownload,
+  parseCSV,
+  validateImportDigests,
+} from "@/lib/export-import";
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded focus:outline-none focus:border-accent text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder:text-gray-400 dark:placeholder:text-gray-500";
@@ -25,6 +34,7 @@ export default function ProfilePage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
   const [totalDigests, setTotalDigests] = useState<number>(0);
 
   const [loading, setLoading] = useState(true);
@@ -56,6 +66,7 @@ export default function ProfilePage() {
 
   const router = useRouter();
   const supabase = createClient();
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchProfileData();
@@ -83,6 +94,7 @@ export default function ProfilePage() {
     if (profile) {
       setUsername(profile.username || "");
       setAvatarUrl(profile.avatar_url || null);
+      setAvatarError(false);
     }
 
     const { count } = await supabase
@@ -104,9 +116,9 @@ export default function ProfilePage() {
       .upsert({ id: userId, username: username.trim(), updated_at: new Date().toISOString() });
 
     if (error) {
-      alert(`Error updating profile: ${error.message}`);
+      showToast(`Error updating profile: ${error.message}`, "error");
     } else {
-      alert("Profile updated successfully!");
+      showToast("Profile updated successfully!", "success");
     }
     setUpdating(false);
   };
@@ -136,8 +148,9 @@ export default function ProfilePage() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
+      setAvatarError(false);
     } catch (error: any) {
-      alert(`Error uploading avatar: ${error.message}`);
+      showToast(`Error uploading avatar: ${error.message}`, "error");
     } finally {
       setUploading(false);
     }
@@ -161,44 +174,22 @@ export default function ProfilePage() {
 
       if (error) throw error;
 
-      const digests: CaseDigestExport[] = data || [];
-      const dateStamp = new Date().toISOString().slice(0, 10);
-
+      const filename = getExportFilename(format);
       if (format === "json") {
-        const blob = new Blob([JSON.stringify(digests, null, 2)], { type: "application/json" });
-        downloadBlob(blob, `jurisph-export-${dateStamp}.json`);
+        const jsonStr = exportToJSON(data || []);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        triggerFileDownload(blob, filename);
       } else {
-        const headers = [
-          "case_title", "gr_number", "legal_classification", "subcategory",
-          "doctrine", "facts", "issues", "ruling", "created_at",
-        ];
-        const escapeCsv = (val: string | null) => {
-          const str = (val ?? "").replace(/"/g, '""');
-          return `"${str}"`;
-        };
-        const rows = digests.map((d) =>
-          headers.map((h) => escapeCsv((d as any)[h])).join(",")
-        );
-        const csv = [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        downloadBlob(blob, `jurisph-export-${dateStamp}.csv`);
+        const csvStr = exportToCSV(data || []);
+        const blob = new Blob([csvStr], { type: "text/csv;charset=utf-8;" });
+        triggerFileDownload(blob, filename);
       }
+      showToast(`Exported digests as ${filename}`, "success");
     } catch (err: any) {
-      alert(`Export failed: ${err.message}`);
+      showToast(`Export failed: ${err.message}`, "error");
     } finally {
       setExporting(false);
     }
-  };
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
   };
 
   // ---------- Import ----------
@@ -207,8 +198,11 @@ export default function ProfilePage() {
     if (!e.target.files || e.target.files.length === 0 || !userId) return;
 
     const file = e.target.files[0];
-    if (!file.name.endsWith(".json")) {
-      setImportMsg("Only JSON exports are supported for import right now.");
+    const isJson = file.name.endsWith(".json");
+    const isCsv = file.name.endsWith(".csv");
+
+    if (!isJson && !isCsv) {
+      setImportMsg("Please upload a .json or .csv export file.");
       e.target.value = "";
       return;
     }
@@ -216,35 +210,43 @@ export default function ProfilePage() {
     setImporting(true);
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
+      let rawRecords: unknown[] = [];
 
-      if (!Array.isArray(parsed)) {
-        throw new Error("File does not contain a list of case digests.");
+      if (isJson) {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+          throw new Error("JSON file must contain an array of case digests.");
+        }
+        rawRecords = parsed;
+      } else {
+        rawRecords = parseCSV(text);
       }
 
-      const rows = parsed.map((item: any) => ({
+      const { validRows, errors } = validateImportDigests(rawRecords);
+
+      if (validRows.length === 0) {
+        const firstError = errors[0]?.errors[0] || "No valid rows found.";
+        throw new Error(`No valid digests could be imported. Error: ${firstError}`);
+      }
+
+      const rowsToInsert = validRows.map((row) => ({
+        ...row,
         user_id: userId,
-        case_title: (item.case_title || "").trim(),
-        gr_number: (item.gr_number || "").trim(),
-        legal_classification: item.legal_classification || "Civil Law",
-        subcategory: item.subcategory || null,
-        doctrine: item.doctrine || null,
-        facts: item.facts || "",
-        issues: item.issues || "",
-        ruling: item.ruling || "",
-      })).filter((r: any) => r.case_title && r.facts);
+      }));
 
-      if (rows.length === 0) {
-        throw new Error("No valid digests found in this file.");
-      }
-
-      const { error } = await supabase.from("case_digests").insert(rows);
+      const { error } = await supabase.from("case_digests").insert(rowsToInsert);
       if (error) throw error;
 
-      setImportMsg(`Imported ${rows.length} case digest(s) successfully.`);
+      const successMsg = `Imported ${validRows.length} digest(s) successfully.${
+        errors.length > 0 ? ` (${errors.length} invalid row(s) skipped)` : ""
+      }`;
+      setImportMsg(successMsg);
+      showToast(successMsg, "success");
       fetchProfileData();
     } catch (err: any) {
-      setImportMsg(`Import failed: ${err.message}`);
+      const errMsg = `Import failed: ${err.message}`;
+      setImportMsg(errMsg);
+      showToast(errMsg, "error");
     } finally {
       setImporting(false);
       e.target.value = "";
@@ -384,8 +386,15 @@ export default function ProfilePage() {
       <div className="bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700 rounded-lg space-y-6">
         <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 pb-6 border-b border-gray-100 dark:border-gray-700">
           <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-600 bg-accent-light flex items-center justify-center">
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt="Profile Avatar" fill className="object-cover" />
+            {avatarUrl && !avatarError ? (
+              <Image
+                src={avatarUrl}
+                alt="Profile Avatar"
+                fill
+                unoptimized
+                onError={() => setAvatarError(true)}
+                className="object-cover"
+              />
             ) : (
               <span className="text-3xl font-bold text-accent uppercase">
                 {username ? username[0] : userEmail ? userEmail[0] : "U"}
@@ -483,8 +492,8 @@ export default function ProfilePage() {
             {exporting ? "Exporting..." : "Export as CSV"}
           </button>
           <label className="cursor-pointer px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-semibold rounded transition-colors">
-            {importing ? "Importing..." : "Import from JSON"}
-            <input type="file" accept=".json" onChange={handleImport} disabled={importing} className="hidden" />
+            {importing ? "Importing..." : "Import (JSON / CSV)"}
+            <input type="file" accept=".json,.csv" onChange={handleImport} disabled={importing} className="hidden" />
           </label>
         </div>
 

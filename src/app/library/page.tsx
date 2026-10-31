@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LEGAL_CLASSIFICATIONS } from "@/lib/constants";
 import DoctrineHighlight from "@/components/DoctrineHighlight";
-
 
 interface CaseDigest {
   id: string;
   case_title: string;
   gr_number: string;
   legal_classification: string;
-  doctrine: string;
+  doctrine: string | null;
   created_at: string;
 }
-
-
 
 export default function CaseLibraryPage() {
   const [digests, setDigests] = useState<CaseDigest[]>([]);
@@ -26,51 +23,103 @@ export default function CaseLibraryPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   const supabase = createClient();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchLibraryDigests = useCallback(
+    async (search: string, category: string) => {
+      setLoading(true);
+      setLoadError(null);
+
+      const trimmedSearch = search.trim();
+      let query = supabase
+        .from("case_digests")
+        .select(
+          "id, case_title, gr_number, legal_classification, doctrine, created_at"
+        )
+        .order("case_title", { ascending: true });
+
+      if (category !== "All") {
+        query = query.eq("legal_classification", category);
+      }
+
+      if (trimmedSearch) {
+        // PostgreSQL Full-Text Search
+        query = query.textSearch("fts", trimmedSearch, {
+          type: "websearch",
+          config: "english",
+        });
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        // Fallback for pre-migration environments without FTS column
+        if (trimmedSearch && error.message.includes("fts")) {
+          let fallbackQuery = supabase
+            .from("case_digests")
+            .select(
+              "id, case_title, gr_number, legal_classification, doctrine, created_at"
+            )
+            .or(
+              `case_title.ilike.%${trimmedSearch}%,gr_number.ilike.%${trimmedSearch}%`
+            )
+            .order("case_title", { ascending: true });
+
+          if (category !== "All") {
+            fallbackQuery = fallbackQuery.eq("legal_classification", category);
+          }
+
+          const fallbackResult = await fallbackQuery;
+          setDigests(fallbackResult.data || []);
+        } else {
+          console.error("Error fetching library digests:", error.message);
+          setLoadError(
+            "Couldn't load your case library. Check your connection and try again."
+          );
+        }
+      } else {
+        setDigests(data || []);
+      }
+      setLoading(false);
+    },
+    [supabase]
+  );
 
   useEffect(() => {
-    fetchLibraryDigests();
-  }, []);
-
-  const fetchLibraryDigests = async () => {
-    setLoading(true);
-    setLoadError(null);
-    const { data, error } = await supabase
-      .from("case_digests")
-      .select("id, case_title, gr_number, legal_classification, doctrine, created_at")
-      .order("case_title", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching library digests:", error.message);
-      setLoadError("Couldn't load your case library. Check your connection and try again.");
-    } else {
-      setDigests(data || []);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
-    setLoading(false);
-  };
 
-  const filteredDigests = useMemo(() => {
-    return digests.filter((item) => {
-      const matchesSearch =
-        item.case_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.gr_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.doctrine.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "All" || item.legal_classification === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [digests, searchQuery, selectedCategory]);
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchLibraryDigests(searchQuery, selectedCategory);
+    }, 200);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, selectedCategory, fetchLibraryDigests]);
 
   // Group filtered digests by classification
   const groupedDigests = useMemo(() => {
     const groups: Record<string, CaseDigest[]> = {};
-    filteredDigests.forEach((item) => {
+    digests.forEach((item) => {
       if (!groups[item.legal_classification]) {
         groups[item.legal_classification] = [];
       }
       groups[item.legal_classification].push(item);
     });
     return groups;
-  }, [filteredDigests]);
+  }, [digests]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("All");
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || selectedCategory !== "All";
 
   return (
     <div className="space-y-6">
@@ -80,20 +129,24 @@ export default function CaseLibraryPage() {
           Case Library
         </h1>
         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Browse and search your legal repository grouped by classification.
+          Browse and search your legal repository grouped by Philippine Bar subject.
         </p>
       </div>
 
       {/* Search & Filter Options */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
+        <div className="relative flex-1">
           <input
+            id="search-input"
             type="text"
-            placeholder="Search by title, G.R. number, or doctrine..."
+            placeholder="Search by title, G.R. number, doctrine, or keywords..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded focus:outline-none focus:border-accent text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+            className="w-full px-3 py-2 pr-16 border border-gray-300 dark:border-gray-700 rounded focus:outline-none focus:border-accent text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
           />
+          <kbd className="hidden sm:inline-flex absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600">
+            ⌘K
+          </kbd>
         </div>
         <div className="sm:w-56">
           <select
@@ -115,40 +168,41 @@ export default function CaseLibraryPage() {
       <div className="flex flex-wrap gap-2 pt-1">
         <button
           onClick={() => setSelectedCategory("All")}
-          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
             selectedCategory === "All"
               ? "bg-accent text-white"
               : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
           }`}
         >
-          All ({digests.length})
+          All
         </button>
-        {LEGAL_CLASSIFICATIONS.map((cat) => {
-          const count = digests.filter((d) => d.legal_classification === cat).length;
-          return (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                selectedCategory === cat
-                  ? "bg-accent text-white"
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              }`}
-            >
-              {cat} ({count})
-            </button>
-          );
-        })}
+        {LEGAL_CLASSIFICATIONS.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              selectedCategory === cat
+                ? "bg-accent text-white"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {/* Main Content Area */}
       {loadError ? (
-        <div className="p-8 sm:p-12 text-center border-2 border-dashed border-red-200 dark:border-red-900 rounded-lg">
-          <h3 className="text-base font-semibold text-red-700 dark:text-red-400">Something went wrong</h3>
-          <p className="text-sm text-red-600 dark:text-red-400 mt-1 mb-4">{loadError}</p>
+        <div className="p-8 sm:p-12 text-center border-2 border-dashed border-red-200 dark:border-red-900 rounded-lg space-y-3">
+          <h3 className="text-base font-semibold text-red-700 dark:text-red-400">
+            Something went wrong
+          </h3>
+          <p className="text-sm text-red-600 dark:text-red-400 max-w-md mx-auto">
+            {loadError}
+          </p>
           <button
-            onClick={fetchLibraryDigests}
-            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded transition-colors"
+            onClick={() => fetchLibraryDigests(searchQuery, selectedCategory)}
+            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded transition-colors cursor-pointer"
           >
             Try Again
           </button>
@@ -180,27 +234,52 @@ export default function CaseLibraryPage() {
             </div>
           ))}
         </div>
-      ) : filteredDigests.length === 0 ? (
-        <div className="p-8 sm:p-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
-          <h3 className="text-base font-semibold text-foreground">No Library Entries Found</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
-            {searchQuery || selectedCategory !== "All"
-              ? "No cases match your filter criteria."
-              : "No digests added yet."}
+      ) : digests.length === 0 ? (
+        <div className="p-8 sm:p-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg space-y-3">
+          <h3 className="text-base font-semibold text-foreground">
+            {hasActiveFilters
+              ? "No library cases match your search or filter criteria"
+              : "No digests added to your library yet"}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+            {hasActiveFilters
+              ? "Try adjusting your search terms or clearing your category filter."
+              : "Start organizing your Philippine jurisprudence entries, legal doctrines, and Bar review notes."}
           </p>
-          <Link
-            href="/create"
-            className="inline-flex items-center text-sm font-medium text-accent hover:underline"
-          >
-            Add New Digest →
-          </Link>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {hasActiveFilters ? (
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded transition-colors cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            ) : (
+              <>
+                <Link
+                  href="/create"
+                  className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded transition-colors inline-block"
+                >
+                  Add New Digest →
+                </Link>
+                <Link
+                  href="/profile"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs font-semibold rounded transition-colors"
+                >
+                  Import Cases
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
           {Object.entries(groupedDigests).map(([category, items]) => (
             <div key={category} className="space-y-3">
               <div className="flex items-center space-x-2 border-b border-gray-200 dark:border-gray-800 pb-2">
-                <h2 className="text-base font-bold text-foreground">{category}</h2>
+                <h2 className="text-base font-bold text-foreground">
+                  {category}
+                </h2>
                 <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-medium">
                   {items.length}
                 </span>
@@ -219,14 +298,23 @@ export default function CaseLibraryPage() {
                       >
                         {item.case_title}
                       </Link>
-                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400">{item.gr_number}</p>
+                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {item.gr_number}
+                      </p>
                       {item.doctrine && (
-                        <DoctrineHighlight doctrine={item.doctrine} variant="compact" />
+                        <DoctrineHighlight
+                          doctrine={item.doctrine}
+                          caseTitle={item.case_title}
+                          grNumber={item.gr_number}
+                          variant="compact"
+                        />
                       )}
                     </div>
 
                     <div className="pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
-                      <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </span>
                       <Link
                         href={`/case/${item.id}`}
                         className="font-medium text-accent hover:underline"
