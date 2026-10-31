@@ -136,4 +136,4 @@ case-digest-repo/
 
 Contributions, feedback, and pull requests are welcome. Feel free to open an issue to suggest improvements or additional Bar subject subcategories.
 
-AUTHOR: Alexius Seth
+AUTHOR: Alexius Seth(https://github.com/alexius-seth)
